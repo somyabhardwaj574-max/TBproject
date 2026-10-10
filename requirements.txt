@@ -1,5 +1,5 @@
-tensorflow
 flask
 pillow
-matplotlib
 gunicorn
+ai-edge-litert
+numpy

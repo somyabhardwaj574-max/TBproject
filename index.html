@@ -185,6 +185,15 @@
                 const endpoint = isGoLive ? "http://127.0.0.1:5000/predict" : "/predict";
 
                 const res = await fetch(endpoint, { method: "POST", body: fd });
+                if (!res.ok) {
+                    let errMsg = "Server error (" + res.status + ")";
+                    try {
+                        const errData = await res.json();
+                        if (errData.error) errMsg = errData.error;
+                    } catch (_) {}
+                    alert("Error: " + errMsg);
+                    return;
+                }
                 const data = await res.json();
 
                 if (data.error) { alert(data.error); return; }
