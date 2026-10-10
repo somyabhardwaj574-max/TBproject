@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TB Detection</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f4f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,.1);
+            padding: 40px;
+            width: 450px;
+            text-align: center;
+        }
+
+        h1 { color: #333; margin-bottom: 8px; }
+        p.sub { color: #777; margin-bottom: 24px; font-size: 14px; }
+
+        /* file input */
+        .upload-area {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 30px;
+            cursor: pointer;
+            transition: .2s;
+            margin-bottom: 16px;
+        }
+        .upload-area:hover { border-color: #4a90d9; }
+        .upload-area input { display: none; }
+        .upload-area span { color: #888; }
+
+        /* preview */
+        #preview {
+            max-width: 200px;
+            max-height: 200px;
+            margin: 12px auto;
+            display: none;
+            border-radius: 8px;
+        }
+
+        /* button */
+        button {
+            background: #4a90d9;
+            color: #fff;
+            border: none;
+            padding: 12px 32px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: .2s;
+        }
+        button:hover { background: #357abd; }
+        button:disabled { background: #aaa; cursor: default; }
+
+        /* result section */
+        #result {
+            margin-top: 28px;
+            display: none;
+        }
+
+        .bar-container {
+            margin: 12px 0;
+            text-align: left;
+        }
+        .bar-label {
+            font-weight: bold;
+            margin-bottom: 4px;
+            font-size: 14px;
+        }
+        .bar-bg {
+            background: #e8e8e8;
+            border-radius: 6px;
+            height: 30px;
+            overflow: hidden;
+        }
+        .bar-fill {
+            height: 100%;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            padding-left: 10px;
+            color: #fff;
+            font-weight: bold;
+            font-size: 13px;
+            transition: width 0.6s ease;
+            min-width: 40px;
+        }
+        .bar-normal { background: #4caf50; }
+        .bar-tb     { background: #f44336; }
+
+        .verdict {
+            margin-top: 16px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .loader {
+            display: none;
+            margin: 16px auto;
+            border: 4px solid #e8e8e8;
+            border-top: 4px solid #4a90d9;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            animation: spin .8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>🫁 TB Detection</h1>
+        <p class="sub">Upload a chest X‑ray image to check for Tuberculosis</p>
+
+        <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+            <span id="fileName">Click here to select an X‑ray image</span>
+            <input type="file" id="fileInput" accept="image/*" />
+        </div>
+
+        <img id="preview" alt="preview" />
+
+        <button id="predictBtn" disabled onclick="predict()">Predict</button>
+        <div class="loader" id="loader"></div>
+
+        <div id="result">
+            <div class="bar-container">
+                <div class="bar-label">Normal: <span id="normalPct">0</span>%</div>
+                <div class="bar-bg">
+                    <div class="bar-fill bar-normal" id="normalBar" style="width:0%"></div>
+                </div>
+            </div>
+            <div class="bar-container">
+                <div class="bar-label">Tuberculosis: <span id="tbPct">0</span>%</div>
+                <div class="bar-bg">
+                    <div class="bar-fill bar-tb" id="tbBar" style="width:0%"></div>
+                </div>
+            </div>
+            <div class="verdict" id="verdict"></div>
+        </div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById("fileInput");
+        const preview   = document.getElementById("preview");
+        const fileName  = document.getElementById("fileName");
+        const predictBtn = document.getElementById("predictBtn");
+
+        fileInput.addEventListener("change", function () {
+            const file = this.files[0];
+            if (!file) return;
+            fileName.textContent = file.name;
+            preview.src = URL.createObjectURL(file);
+            preview.style.display = "block";
+            predictBtn.disabled = false;
+            document.getElementById("result").style.display = "none";
+        });
+
+        async function predict() {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            predictBtn.disabled = true;
+            document.getElementById("loader").style.display = "block";
+            document.getElementById("result").style.display = "none";
+
+            const fd = new FormData();
+            fd.append("file", file);
+
+            try {
+                // If running on Go Live (port 5500 or file://), send to Flask backend at 5000
+                const isGoLive = window.location.port !== "5000";
+                const endpoint = isGoLive ? "http://127.0.0.1:5000/predict" : "/predict";
+
+                const res = await fetch(endpoint, { method: "POST", body: fd });
+                const data = await res.json();
+
+                if (data.error) { alert(data.error); return; }
+
+                document.getElementById("normalPct").textContent = data.normal;
+                document.getElementById("tbPct").textContent     = data.tb;
+                document.getElementById("normalBar").style.width = data.normal + "%";
+                document.getElementById("tbBar").style.width     = data.tb + "%";
+
+                const verdict = document.getElementById("verdict");
+                if (data.tb > 50) {
+                    verdict.textContent = "⚠️ TB Detected";
+                    verdict.style.color = "#f44336";
+                } else {
+                    verdict.textContent = "✅ Normal";
+                    verdict.style.color = "#4caf50";
+                }
+
+                document.getElementById("result").style.display = "block";
+            } catch (e) {
+                alert("Error: " + e.message);
+            } finally {
+                document.getElementById("loader").style.display = "none";
+                predictBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
